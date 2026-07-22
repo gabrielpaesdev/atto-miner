@@ -11,7 +11,7 @@
 #define SHA_DIGEST_LENGTH 20
 #define DEFAULT_POOL_IP "server.duinocoin.com"
 #define DEFAULT_POOL_PORT 2813
-#define MINER_VERSION "1.0.0"
+#define MINER_VERSION "1.1.0"
 
 #define MAX_THREADS 128
 volatile unsigned int global_hashrates[MAX_THREADS] = {0};
@@ -130,12 +130,12 @@ int fetch_pool_raw(char *ip_out, size_t ip_sz, int *port_out) {
 
 int recv_line(hal_socket_t sock, char *buf, size_t bufsz) {
     size_t total = 0;
-    while (total + 1 < bufsz) {
+    while (1) {
         char c;
         int n = hal_recv(sock, &c, 1);
         if (n <= 0) return -1;
         if (c == '\n') break;
-        if (c != '\r') buf[total++] = c;
+        if (c != '\r' && total + 1 < bufsz) buf[total++] = c;
     }
     buf[total] = '\0';
     return (int)total;
@@ -262,7 +262,7 @@ static void miner_worker(void *arg) {
                         connection_alive = 0; share_found = 1; break;
                     }
 
-                    char feedback[32];
+                    char feedback[64];
                     if (recv_line(socket_desc, feedback, sizeof(feedback)) < 0) {
                         connection_alive = 0; share_found = 1; break;
                     }
@@ -305,7 +305,7 @@ static int miner_main(int argc, char **argv) {
 #ifndef MINIMAL
     LOG(
     "\033[1;36m============================================================\n"
-    "\033[1;33matto-miner v" MINER_VERSION ". July 21, 2026.\n"
+    "\033[1;33matto-miner v" MINER_VERSION ". July 22, 2026.\n"
     "\033[1;35mOne miner, any platform.\n"
     "\033[1;36m============================================================\n"
     "\033[0;37mDeveloped by Gabriel Paes, 2026. MIT License.\n"
@@ -328,6 +328,16 @@ static int miner_main(int argc, char **argv) {
 
     printf("Enter Rig identifier (name): ");
     if (scanf("%63s", rig_id) != 1) strcpy(rig_id, "atto-x86");
+
+    char difficulty[16] = DUCO_DIFFICULTY;
+    printf("Difficulty (LOW/MEDIUM/NET): ");
+    if (scanf("%15s", difficulty) == 1) {
+        if (strcmp(difficulty, "LOW") != 0 &&
+            strcmp(difficulty, "MEDIUM") != 0 &&
+            strcmp(difficulty, "NET") != 0) {
+            strcpy(difficulty, DUCO_DIFFICULTY);
+        }
+    }
 
     printf("Number of threads to spawn: ");
     if (scanf("%d", &num_threads) != 1) num_threads = 1;
@@ -357,7 +367,7 @@ static int miner_main(int argc, char **argv) {
         cfg->single_miner_id = pool_group_id;
 
 #ifndef MINIMAL
-        strncpy(cfg->requested_difficulty, "HIGH", sizeof(cfg->requested_difficulty) - 1);
+        strncpy(cfg->requested_difficulty, difficulty, sizeof(cfg->requested_difficulty) - 1);
 #else
         strncpy(cfg->requested_difficulty, DUCO_DIFFICULTY, sizeof(cfg->requested_difficulty) - 1);
 #endif
