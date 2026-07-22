@@ -12,6 +12,13 @@ echo
 read -p "Enter Rig identifier [Default: atto-rig]: " RIG_ID
 RIG_ID=${RIG_ID:-atto-rig}
 
+read -p "Difficulty (LOW/MEDIUM/NET) [Default: MEDIUM]: " DIFFICULTY
+DIFFICULTY=${DIFFICULTY:-MEDIUM}
+case "$DIFFICULTY" in
+    LOW|MEDIUM|NET) ;;
+    *) DIFFICULTY=MEDIUM ;;
+esac
+
 read -p "Enter number of threads (1 to 128) [Default: 1]: " THREADS
 THREADS=${THREADS:-1}
 
@@ -29,9 +36,9 @@ if [ ! -f "\$EXECUTABLE" ]; then
     exit 1
 fi
 
-echo "Starting miner for user '$USERNAME' on rig '$RIG_ID' with $THREADS thread(s)..."
+echo "Starting miner for user '$USERNAME' on rig '$RIG_ID' with $THREADS thread(s) at $DIFFICULTY difficulty..."
 
-echo -e "$RIG_ID\n$THREADS" | \$EXECUTABLE "$USERNAME" "$PASSWORD"
+echo -e "$RIG_ID\n$DIFFICULTY\n$THREADS" | \$EXECUTABLE "$USERNAME" "$PASSWORD"
 EOF
 
 chmod +x run.sh
