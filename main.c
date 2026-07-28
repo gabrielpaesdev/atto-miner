@@ -11,7 +11,7 @@
 #define SHA_DIGEST_LENGTH 20
 #define DEFAULT_POOL_IP "server.duinocoin.com"
 #define DEFAULT_POOL_PORT 2813
-#define MINER_VERSION "1.1.0"
+#define MINER_VERSION "1.2.0"
 
 #define MAX_THREADS 128
 volatile unsigned int global_hashrates[MAX_THREADS] = {0};
@@ -291,13 +291,69 @@ static void miner_worker(void *arg) {
     free(cfg);
 }
 
+#ifndef MINIMAL 
+//TODO: Put this and the initial banner in a cli.h and cli.c to clean this source file.
+static void print_usage(const char *prog) {
+    printf(
+        "atto-miner v" MINER_VERSION " - One miner, any platform.\n"
+        "Developed by Gabriel Paes, 2026. MIT License.\n"
+        "\n"
+        "USAGE:\n"
+        "    %s [USERNAME] [MINING_KEY] [OPTIONS]\n"
+        "\n"
+        "DESCRIPTION:\n"
+        "    Duino-Coin (DUCO) SHA1 CPU miner. Any argument left out is\n"
+        "    requested interactively at startup.\n"
+        "\n"
+        "POSITIONAL ARGUMENTS:\n"
+        "    USERNAME       Your Duino-Coin account username.\n"
+        "    MINING_KEY     Your Duino-Coin mining key (password).\n"
+        "\n"
+        "OPTIONS:\n"
+        "    -h, --help     Show this help message and exit.\n"
+        "\n"
+        "INTERACTIVE PROMPTS (when not supplied as arguments):\n"
+        "    Rig identifier      Free-form name used to label this rig on the pool.\n"
+        "    Difficulty          LOW, MEDIUM, or NET.\n"
+        "    Thread count        Defaults to the number of detected logical cores.\n"
+        "\n"
+        "EXAMPLES:\n"
+        "    %s\n"
+        "        Run fully interactively.\n"
+        "\n"
+        "    %s myUsername myMiningKey\n"
+        "        Skip the username/key prompts.\n"
+        "\n"
+        "PROJECT:\n"
+        "    Originally based on the d-cpuminer project (Copyright (c) 2020).\n"
+        "    https://github.com/gabrielpaesdev/atto-miner/\n",
+        prog, prog, prog
+    );
+}
+#endif
+
 static int miner_main(int argc, char **argv) {
+#ifndef MINIMAL
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        }
+    }
+#endif
+
     if (hal_init() != 0) return 1;
+
+    hal_cpu_info_t cpu;
+    hal_get_cpu_info(&cpu);
 
     char username[64] = "";
     char mining_key[64] = "";
     char rig_id[64] = "atto-rig";
-    int num_threads = 1;
+
+    int num_threads = cpu.logical_cores;
+    if (num_threads <= 0) num_threads = 1;
+    if (num_threads > MAX_THREADS) num_threads = MAX_THREADS;
 
     srand((unsigned int)hal_time());
     int pool_group_id = rand() % 2812;
@@ -305,12 +361,14 @@ static int miner_main(int argc, char **argv) {
 #ifndef MINIMAL
     LOG(
     "\033[1;36m============================================================\n"
-    "\033[1;33matto-miner v" MINER_VERSION ". July 22, 2026.\n"
+    "\033[1;33matto-miner v" MINER_VERSION ". July 28, 2026.\n"
     "\033[1;35mOne miner, any platform.\n"
+    "\033[1;32mYour device: %s (%d threads)\n"
     "\033[1;36m============================================================\n"
     "\033[0;37mDeveloped by Gabriel Paes, 2026. MIT License.\n"
     "Originally based on the d-cpuminer project (Copyright (c) 2020).\n"
-    "\033[1;36m============================================================\033[0m\n"
+    "\033[1;36m============================================================\033[0m\n",
+    cpu.model_name, cpu.logical_cores
 );
     if (argc > 1) {
         strncpy(username, argv[1], sizeof(username) - 1);
@@ -339,9 +397,11 @@ static int miner_main(int argc, char **argv) {
         }
     }
 
-    printf("Number of threads to spawn: ");
-    if (scanf("%d", &num_threads) != 1) num_threads = 1;
-
+    printf("Number of threads to spawn (detected %d, Enter to use default): ", num_threads);
+    int typed_threads;
+    if (scanf("%d", &typed_threads) == 1) {
+        num_threads = typed_threads;
+    }
     if (num_threads <= 0) num_threads = 1;
     if (num_threads > MAX_THREADS) num_threads = MAX_THREADS;
 
@@ -362,14 +422,19 @@ static int miner_main(int argc, char **argv) {
         miner_thread_cfg_t *cfg = malloc(sizeof(miner_thread_cfg_t));
         cfg->thread_id = i;
         strncpy(cfg->username, username, sizeof(cfg->username) - 1);
+        cfg->username[sizeof(cfg->username) - 1] = '\0';
         strncpy(cfg->mining_key, mining_key, sizeof(cfg->mining_key) - 1);
+        cfg->mining_key[sizeof(cfg->mining_key) - 1] = '\0';
         strncpy(cfg->rig_id, rig_id, sizeof(cfg->rig_id) - 1);
+        cfg->rig_id[sizeof(cfg->rig_id) - 1] = '\0';
         cfg->single_miner_id = pool_group_id;
 
 #ifndef MINIMAL
         strncpy(cfg->requested_difficulty, difficulty, sizeof(cfg->requested_difficulty) - 1);
+        cfg->requested_difficulty[sizeof(cfg->requested_difficulty) - 1] = '\0';
 #else
         strncpy(cfg->requested_difficulty, DUCO_DIFFICULTY, sizeof(cfg->requested_difficulty) - 1);
+        cfg->requested_difficulty[sizeof(cfg->requested_difficulty) - 1] = '\0';
 #endif
 
         hal_thread_create(miner_worker, cfg);
