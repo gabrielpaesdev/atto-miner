@@ -62,4 +62,11 @@ typedef struct {
 } miner_thread_cfg_t;
 /* Spawns an abstracted thread to keep main.c OS-agnostic */
 void hal_thread_create(void (*task)(void*), void *arg);
+
+typedef struct {
+    int logical_cores;
+    char model_name[128];
+} hal_cpu_info_t;
+
+void hal_get_cpu_info(hal_cpu_info_t *info);
 #endif /* HAL_H */
