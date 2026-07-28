@@ -12,7 +12,6 @@
 
 int hal_init(void) {
     WSADATA wsaData;
-
     int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (result != 0) {
         return -1;
@@ -20,6 +19,7 @@ int hal_init(void) {
     return 0;
 }
 
+o hal init era assim
 void hal_deinit(void) {
     WSACleanup();
 }
@@ -123,4 +123,23 @@ void hal_thread_create(void (*task)(void *), void *arg) {
     }
 
     CloseHandle(h);
+}
+
+void hal_get_cpu_info(hal_cpu_info_t *info) {
+    SYSTEM_INFO sysinfo;
+    GetSystemInfo(&sysinfo);
+    info->logical_cores = (int)sysinfo.dwNumberOfProcessors;
+
+    info->model_name[0] = '\0';
+
+    HKEY hKey;
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        DWORD dataSize = sizeof(info->model_name);
+        RegQueryValueExA(hKey, "ProcessorNameString", NULL, NULL, (LPBYTE)info->model_name, &dataSize);
+        RegCloseKey(hKey);
+    }
+
+    if (info->model_name[0] == '\0') {
+        snprintf(info->model_name, sizeof(info->model_name), "Unknown Windows CPU");
+    }
 }
