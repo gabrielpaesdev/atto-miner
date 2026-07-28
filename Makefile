@@ -33,7 +33,7 @@ ifeq ($(ARCH),linux)
     HAL       := $(HAL_DIR)/hal_linux.c
     LIBS      := -pthread
     OS_TAG    := linux
-    ARCH_TAG  := x64
+    ARCH_TAG  := $(shell uname -m)
     EXE_EXT   :=
 else ifeq ($(ARCH),windows)
     CC        := x86_64-w64-mingw32-gcc
