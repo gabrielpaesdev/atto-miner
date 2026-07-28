@@ -84,3 +84,44 @@ void hal_thread_create(void (*task)(void*), void *arg) {
         pthread_detach(t);
     }
 }
+
+void hal_get_cpu_info(hal_cpu_info_t *info) {
+    long cores = sysconf(_SC_NPROCESSORS_ONLN);
+    
+    if (cores > 0) {
+        info->logical_cores = (int)cores;
+    } else {
+        info->logical_cores = 1;
+    }
+
+    info->model_name[0] = '\0';
+
+    FILE *f = fopen("/proc/cpuinfo", "r");
+    if (f) {
+        char line[256];
+        while (fgets(line, sizeof(line), f)) {
+            if (strncmp(line, "model name", 10) == 0) {
+                char *colon = strchr(line, ':');
+                if (colon) {
+                    colon++;
+                    while (*colon == ' ') colon++;
+                    
+                    strncpy(info->model_name, colon, sizeof(info->model_name) - 1);
+                    info->model_name[sizeof(info->model_name) - 1] = '\0';
+                    
+                    size_t len = strlen(info->model_name);
+                    if (len > 0 && info->model_name[len - 1] == '\n') {
+                        info->model_name[len - 1] = '\0';
+                    }
+                    break;
+                }
+            }
+        }
+        fclose(f);
+    }
+
+    if (info->model_name[0] == '\0') {
+        strncpy(info->model_name, "Unknown CPU", sizeof(info->model_name) - 1);
+        info->model_name[sizeof(info->model_name) - 1] = '\0';
+    }
+}
