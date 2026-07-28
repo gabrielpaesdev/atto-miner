@@ -19,7 +19,7 @@ int hal_init(void) {
     return 0;
 }
 
-o hal init era assim
+
 void hal_deinit(void) {
     WSACleanup();
 }
