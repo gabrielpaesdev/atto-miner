@@ -383,14 +383,16 @@ static int miner_main(int argc, char **argv) {
         memcpy(username, argv[1], len);
         username[len] = '\0';
     } else {
-        printf("Enter your DUCO username: ");
-        if (fgets(buf_input, sizeof(buf_input), stdin)) {
-            buf_input[strcspn(buf_input, "\r\n")] = '\0';
-            if (buf_input[0] != '\0') {
-                size_t len = strlen(buf_input);
-                if (len >= sizeof(username)) len = sizeof(username) - 1;
-                memcpy(username, buf_input, len);
-                username[len] = '\0';
+        while (username[0] == '\0') {
+            printf("Enter your DUCO username: ");
+            if (fgets(buf_input, sizeof(buf_input), stdin)) {
+                buf_input[strcspn(buf_input, "\r\n")] = '\0';
+                if (buf_input[0] != '\0') {
+                    size_t len = strlen(buf_input);
+                    if (len >= sizeof(username)) len = sizeof(username) - 1;
+                    memcpy(username, buf_input, len);
+                    username[len] = '\0';
+                }
             }
         }
     }
@@ -401,14 +403,16 @@ static int miner_main(int argc, char **argv) {
         memcpy(mining_key, argv[2], len);
         mining_key[len] = '\0';
     } else {
-        printf("Enter your mining key (password): ");
-        if (fgets(buf_input, sizeof(buf_input), stdin)) {
-            buf_input[strcspn(buf_input, "\r\n")] = '\0';
-            if (buf_input[0] != '\0') {
-                size_t len = strlen(buf_input);
-                if (len >= sizeof(mining_key)) len = sizeof(mining_key) - 1;
-                memcpy(mining_key, buf_input, len);
-                mining_key[len] = '\0';
+        while (mining_key[0] == '\0') {
+            printf("Enter your mining key (password): ");
+            if (fgets(buf_input, sizeof(buf_input), stdin)) {
+                buf_input[strcspn(buf_input, "\r\n")] = '\0';
+                if (buf_input[0] != '\0') {
+                    size_t len = strlen(buf_input);
+                    if (len >= sizeof(mining_key)) len = sizeof(mining_key) - 1;
+                    memcpy(mining_key, buf_input, len);
+                    mining_key[len] = '\0';
+                }
             }
         }
     }
