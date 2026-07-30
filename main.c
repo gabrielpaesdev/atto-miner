@@ -300,7 +300,7 @@ static void print_usage(const char *prog) {
         "Developed by Gabriel Paes, 2026. MIT License.\n"
         "\n"
         "USAGE:\n"
-        "    %s [USERNAME] [MINING_KEY] [OPTIONS]\n"
+        "    %s [USERNAME] [MINING_KEY] [RIG_ID] [DIFFICULTY] [THREADS]\n"
         "\n"
         "DESCRIPTION:\n"
         "    Duino-Coin (DUCO) SHA1 CPU miner. Any argument left out is\n"
@@ -309,21 +309,19 @@ static void print_usage(const char *prog) {
         "POSITIONAL ARGUMENTS:\n"
         "    USERNAME       Your Duino-Coin account username.\n"
         "    MINING_KEY     Your Duino-Coin mining key (password).\n"
+        "    RIG_ID         Free-form name used to label this rig on the pool.\n"
+        "    DIFFICULTY     LOW, MEDIUM, or NET.\n"
+        "    THREADS        Number of mining threads to spawn.\n"
         "\n"
         "OPTIONS:\n"
         "    -h, --help     Show this help message and exit.\n"
-        "\n"
-        "INTERACTIVE PROMPTS (when not supplied as arguments):\n"
-        "    Rig identifier     Free-form name used to label this rig on the pool.\n"
-        "    Difficulty         LOW, MEDIUM, or NET.\n"
-        "    Thread count       Defaults to the number of detected logical cores.\n"
         "\n"
         "EXAMPLES:\n"
         "    %s\n"
         "        Run fully interactively.\n"
         "\n"
-        "    %s myUsername myMiningKey\n"
-        "        Skip the username/key prompts.\n"
+        "    %s myUsername myMiningKey myRig LOW 4\n"
+        "        Skip all prompts.\n"
         "\n"
         "PROJECT:\n"
         "    Originally based on the d-cpuminer project (Copyright (c) 2020).\n"
@@ -373,7 +371,7 @@ static int miner_main(int argc, char **argv) {
     "Originally based on the d-cpuminer project (Copyright (c) 2020).\n"
     "\033[1;36m============================================================\033[0m\n",
     cpu.model_name, cpu.logical_cores
-);
+    );
 
     char buf_input[64];
 
@@ -417,42 +415,64 @@ static int miner_main(int argc, char **argv) {
         }
     }
 
-    printf("Enter Rig identifier (name) [default: atto-rig]: ");
-    if (fgets(buf_input, sizeof(buf_input), stdin)) {
-        buf_input[strcspn(buf_input, "\r\n")] = '\0';
-        if (buf_input[0] != '\0') {
-            size_t len = strlen(buf_input);
-            if (len >= sizeof(rig_id)) len = sizeof(rig_id) - 1;
-            memcpy(rig_id, buf_input, len);
-            rig_id[len] = '\0';
-        }
-    }
-
-    printf("Difficulty (LOW/MEDIUM/NET) [default: %s]: ", DUCO_DIFFICULTY);
-    if (fgets(buf_input, sizeof(buf_input), stdin)) {
-        buf_input[strcspn(buf_input, "\r\n")] = '\0';
-        if (buf_input[0] != '\0') {
-            if (strcmp(buf_input, "LOW") == 0 ||
-                strcmp(buf_input, "MEDIUM") == 0 ||
-                strcmp(buf_input, "NET") == 0) {
+    if (argc > 3) {
+        size_t len = strlen(argv[3]);
+        if (len >= sizeof(rig_id)) len = sizeof(rig_id) - 1;
+        memcpy(rig_id, argv[3], len);
+        rig_id[len] = '\0';
+    } else {
+        printf("Enter Rig identifier (name) [default: atto-rig]: ");
+        if (fgets(buf_input, sizeof(buf_input), stdin)) {
+            buf_input[strcspn(buf_input, "\r\n")] = '\0';
+            if (buf_input[0] != '\0') {
                 size_t len = strlen(buf_input);
-                if (len >= sizeof(difficulty)) len = sizeof(difficulty) - 1;
-                memcpy(difficulty, buf_input, len);
-                difficulty[len] = '\0';
+                if (len >= sizeof(rig_id)) len = sizeof(rig_id) - 1;
+                memcpy(rig_id, buf_input, len);
+                rig_id[len] = '\0';
             }
         }
     }
 
-    printf("Number of threads to spawn (detected %d, Enter to use default): ", num_threads);
-    if (fgets(buf_input, sizeof(buf_input), stdin)) {
-        buf_input[strcspn(buf_input, "\r\n")] = '\0';
-        if (buf_input[0] != '\0') {
-            int typed_threads;
-            if (sscanf(buf_input, "%d", &typed_threads) == 1) {
-                num_threads = typed_threads;
+    if (argc > 4) {
+        size_t len = strlen(argv[4]);
+        if (len >= sizeof(difficulty)) len = sizeof(difficulty) - 1;
+        memcpy(difficulty, argv[4], len);
+        difficulty[len] = '\0';
+    } else {
+        printf("Difficulty (LOW/MEDIUM/NET) [default: %s]: ", DUCO_DIFFICULTY);
+        if (fgets(buf_input, sizeof(buf_input), stdin)) {
+            buf_input[strcspn(buf_input, "\r\n")] = '\0';
+            if (buf_input[0] != '\0') {
+                if (strcmp(buf_input, "LOW") == 0 ||
+                    strcmp(buf_input, "MEDIUM") == 0 ||
+                    strcmp(buf_input, "NET") == 0) {
+                    size_t len = strlen(buf_input);
+                    if (len >= sizeof(difficulty)) len = sizeof(difficulty) - 1;
+                    memcpy(difficulty, buf_input, len);
+                    difficulty[len] = '\0';
+                }
             }
         }
     }
+
+    if (argc > 5) {
+        int typed_threads;
+        if (sscanf(argv[5], "%d", &typed_threads) == 1) {
+            num_threads = typed_threads;
+        }
+    } else {
+        printf("Number of threads to spawn (detected %d, Enter to use default): ", num_threads);
+        if (fgets(buf_input, sizeof(buf_input), stdin)) {
+            buf_input[strcspn(buf_input, "\r\n")] = '\0';
+            if (buf_input[0] != '\0') {
+                int typed_threads;
+                if (sscanf(buf_input, "%d", &typed_threads) == 1) {
+                    num_threads = typed_threads;
+                }
+            }
+        }
+    }
+    
     if (num_threads <= 0) num_threads = 1;
     if (num_threads > MAX_THREADS) num_threads = MAX_THREADS;
 
