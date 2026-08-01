@@ -3,6 +3,7 @@
 #include <string.h>
 #include "sha1.h"
 #include "hal.h"
+#include "cli.h"
 
 #define CLOSE_SOCKET hal_close
 #define SLEEP(x) hal_sleep(x)
@@ -11,18 +12,12 @@
 #define SHA_DIGEST_LENGTH 20
 #define DEFAULT_POOL_IP "server.duinocoin.com"
 #define DEFAULT_POOL_PORT 2813
-#define MINER_VERSION "1.2.1"
+
 
 #define MAX_THREADS 128
 volatile unsigned int global_hashrates[MAX_THREADS] = {0};
 
 #ifdef MINIMAL
-    #if defined(ESP_PLATFORM)
-        #define MINER_ID "atto-min-esp32"
-    #else
-        #define MINER_ID "atto-min-mips"
-    #endif
-    #define DUCO_DIFFICULTY "LOW"
     #define LOG(...) ((void)0)
 
     #ifndef DUCO_USERNAME
@@ -35,8 +30,6 @@ volatile unsigned int global_hashrates[MAX_THREADS] = {0};
         #define DUCO_RIG_ID "atto-minimal"
     #endif
 #else
-    #define MINER_ID "atto-miner"
-    #define DUCO_DIFFICULTY "MEDIUM"
     #define LOG(...) printf(__VA_ARGS__)
 #endif
 
@@ -105,10 +98,13 @@ int json_get_scalar(const char *json, const char *key, char *out, size_t outsz) 
 int fetch_pool_raw(char *ip_out, size_t ip_sz, int *port_out) {
     hal_socket_t sock = hal_connect("server.duinocoin.com", 80);
     if (sock == INVALID_SOCKET) return 0;
-    const char *req = "GET /getPool HTTP/1.0\r\n"
-                      "Host: server.duinocoin.com\r\n"
-                      "User-Agent: atto-miner/1.2\r\n"
-                      "Connection: close\r\n\r\n";
+    char req[192];
+    snprintf(req, sizeof(req),
+             "GET /getPool HTTP/1.0\r\n"
+             "Host: server.duinocoin.com\r\n"
+             "User-Agent: %s\r\n"
+             "Connection: close\r\n\r\n",
+             MINER_USER_AGENT);
     hal_send(sock, req, strlen(req));
     char buf[4096];
     memset(buf, 0, sizeof(buf));
@@ -293,51 +289,10 @@ static void miner_worker(void *arg) {
     free(cfg);
 }
 
-#ifndef MINIMAL 
-static void print_usage(const char *prog) {
-    printf(
-        "atto-miner v" MINER_VERSION " - One miner, any platform.\n"
-        "Developed by Gabriel Paes, 2026. MIT License.\n"
-        "\n"
-        "USAGE:\n"
-        "    %s [USERNAME] [MINING_KEY] [RIG_ID] [DIFFICULTY] [THREADS]\n"
-        "\n"
-        "DESCRIPTION:\n"
-        "    Duino-Coin (DUCO) SHA1 CPU miner. Any argument left out is\n"
-        "    requested interactively at startup.\n"
-        "\n"
-        "POSITIONAL ARGUMENTS:\n"
-        "    USERNAME       Your Duino-Coin account username.\n"
-        "    MINING_KEY     Your Duino-Coin mining key (password).\n"
-        "    RIG_ID         Free-form name used to label this rig on the pool.\n"
-        "    DIFFICULTY     LOW, MEDIUM, or NET.\n"
-        "    THREADS        Number of mining threads to spawn.\n"
-        "\n"
-        "OPTIONS:\n"
-        "    -h, --help     Show this help message and exit.\n"
-        "\n"
-        "EXAMPLES:\n"
-        "    %s\n"
-        "        Run fully interactively.\n"
-        "\n"
-        "    %s myUsername myMiningKey myRig LOW 4\n"
-        "        Skip all prompts.\n"
-        "\n"
-        "PROJECT:\n"
-        "    Originally based on the d-cpuminer project (Copyright (c) 2020).\n"
-        "    https://github.com/gabrielpaesdev/atto-miner/\n",
-        prog, prog, prog
-    );
-}
-#endif
-
 static int miner_main(int argc, char **argv) {
 #ifndef MINIMAL
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-            print_usage(argv[0]);
-            return 0;
-        }
+    if (cli_handle_help_flag(argc, argv)) {
+        return 0;
     }
 #endif
 
@@ -361,118 +316,17 @@ static int miner_main(int argc, char **argv) {
     int pool_group_id = rand() % 2812;
 
 #ifndef MINIMAL
-    LOG(
-    "\033[1;36m============================================================\n"
-    "\033[1;33matto-miner v" MINER_VERSION ". July 29, 2026.\n"
-    "\033[1;35mOne miner, any platform.\n"
-    "\033[1;32mYour device: %s (%d threads)\n"
-    "\033[1;36m============================================================\n"
-    "\033[0;37mDeveloped by Gabriel Paes, 2026. MIT License.\n"
-    "Originally based on the d-cpuminer project (Copyright (c) 2020).\n"
-    "\033[1;36m============================================================\033[0m\n",
-    cpu.model_name, cpu.logical_cores
-    );
+    cli_print_banner(&cpu);
 
-    char buf_input[64];
+    cli_config_t cfg_in;
+    cli_gather_config(argc, argv, &cfg_in, num_threads);
 
-    if (argc > 1) {
-        size_t len = strlen(argv[1]);
-        if (len >= sizeof(username)) len = sizeof(username) - 1;
-        memcpy(username, argv[1], len);
-        username[len] = '\0';
-    } else {
-        while (username[0] == '\0') {
-            printf("Enter your DUCO username: ");
-            if (fgets(buf_input, sizeof(buf_input), stdin)) {
-                buf_input[strcspn(buf_input, "\r\n")] = '\0';
-                if (buf_input[0] != '\0') {
-                    size_t len = strlen(buf_input);
-                    if (len >= sizeof(username)) len = sizeof(username) - 1;
-                    memcpy(username, buf_input, len);
-                    username[len] = '\0';
-                }
-            }
-        }
-    }
+    memcpy(username, cfg_in.username, sizeof(username));
+    memcpy(mining_key, cfg_in.mining_key, sizeof(mining_key));
+    memcpy(rig_id, cfg_in.rig_id, sizeof(rig_id));
+    memcpy(difficulty, cfg_in.difficulty, sizeof(difficulty));
+    num_threads = cfg_in.num_threads;
 
-    if (argc > 2) {
-        size_t len = strlen(argv[2]);
-        if (len >= sizeof(mining_key)) len = sizeof(mining_key) - 1;
-        memcpy(mining_key, argv[2], len);
-        mining_key[len] = '\0';
-    } else {
-        while (mining_key[0] == '\0') {
-            printf("Enter your mining key (password): ");
-            if (fgets(buf_input, sizeof(buf_input), stdin)) {
-                buf_input[strcspn(buf_input, "\r\n")] = '\0';
-                if (buf_input[0] != '\0') {
-                    size_t len = strlen(buf_input);
-                    if (len >= sizeof(mining_key)) len = sizeof(mining_key) - 1;
-                    memcpy(mining_key, buf_input, len);
-                    mining_key[len] = '\0';
-                }
-            }
-        }
-    }
-
-    if (argc > 3) {
-        size_t len = strlen(argv[3]);
-        if (len >= sizeof(rig_id)) len = sizeof(rig_id) - 1;
-        memcpy(rig_id, argv[3], len);
-        rig_id[len] = '\0';
-    } else {
-        printf("Enter Rig identifier (name) [default: atto-rig]: ");
-        if (fgets(buf_input, sizeof(buf_input), stdin)) {
-            buf_input[strcspn(buf_input, "\r\n")] = '\0';
-            if (buf_input[0] != '\0') {
-                size_t len = strlen(buf_input);
-                if (len >= sizeof(rig_id)) len = sizeof(rig_id) - 1;
-                memcpy(rig_id, buf_input, len);
-                rig_id[len] = '\0';
-            }
-        }
-    }
-
-    if (argc > 4) {
-        size_t len = strlen(argv[4]);
-        if (len >= sizeof(difficulty)) len = sizeof(difficulty) - 1;
-        memcpy(difficulty, argv[4], len);
-        difficulty[len] = '\0';
-    } else {
-        printf("Difficulty (LOW/MEDIUM/NET) [default: %s]: ", DUCO_DIFFICULTY);
-        if (fgets(buf_input, sizeof(buf_input), stdin)) {
-            buf_input[strcspn(buf_input, "\r\n")] = '\0';
-            if (buf_input[0] != '\0') {
-                if (strcmp(buf_input, "LOW") == 0 ||
-                    strcmp(buf_input, "MEDIUM") == 0 ||
-                    strcmp(buf_input, "NET") == 0) {
-                    size_t len = strlen(buf_input);
-                    if (len >= sizeof(difficulty)) len = sizeof(difficulty) - 1;
-                    memcpy(difficulty, buf_input, len);
-                    difficulty[len] = '\0';
-                }
-            }
-        }
-    }
-
-    if (argc > 5) {
-        int typed_threads;
-        if (sscanf(argv[5], "%d", &typed_threads) == 1) {
-            num_threads = typed_threads;
-        }
-    } else {
-        printf("Number of threads to spawn (detected %d, Enter to use default): ", num_threads);
-        if (fgets(buf_input, sizeof(buf_input), stdin)) {
-            buf_input[strcspn(buf_input, "\r\n")] = '\0';
-            if (buf_input[0] != '\0') {
-                int typed_threads;
-                if (sscanf(buf_input, "%d", &typed_threads) == 1) {
-                    num_threads = typed_threads;
-                }
-            }
-        }
-    }
-    
     if (num_threads <= 0) num_threads = 1;
     if (num_threads > MAX_THREADS) num_threads = MAX_THREADS;
 
