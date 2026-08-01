@@ -76,12 +76,12 @@ USERNAME ?= "username"
 MINING_KEY ?= "password"
 RIG_ID ?= "atto-static"
 THREADS ?= 1
-SOURCES := main.c sha1.c $(HAL)
+SOURCES := main.c sha1.c cli.c $(HAL)
 
 .PHONY: all clean help size
 all: $(EXECUTABLE)
 
-$(EXECUTABLE): $(SOURCES) $(HAL_DIR)/hal.h sha1.h
+$(EXECUTABLE): $(SOURCES) $(HAL_DIR)/hal.h sha1.h cli.h
 	$(CC) $(SOURCES) $(FLAGS) $(MODE_FLAGS) $(LIBS) -o $(EXECUTABLE)
 
 size: $(EXECUTABLE)
