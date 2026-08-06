@@ -13,7 +13,6 @@
 #define DEFAULT_POOL_IP "server.duinocoin.com"
 #define DEFAULT_POOL_PORT 2813
 
-
 #define MAX_THREADS 128
 volatile unsigned int global_hashrates[MAX_THREADS] = {0};
 
@@ -224,9 +223,8 @@ static void miner_worker(void *arg) {
                 block[63] = bits & 0xFF;
 
                 uint32_t state[5] = { 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0 };
-                unsigned char clean_block[64];
-                memcpy(clean_block, block, 64);
-                SHA1Transform(state, clean_block);
+
+                SHA1Transform(state, block);
 
                 if (state[0] == target_state[0] && state[1] == target_state[1] &&
                     state[2] == target_state[2] && state[3] == target_state[3] &&
@@ -305,7 +303,7 @@ static int miner_main(int argc, char **argv) {
     char mining_key[64] = "";
     char rig_id[64] = "atto-rig";
     char difficulty[16];
-    
+
     strcpy(difficulty, DUCO_DIFFICULTY);
 
     int num_threads = cpu.logical_cores;
@@ -359,7 +357,7 @@ static int miner_main(int argc, char **argv) {
     for (int i = 0; i < num_threads; i++) {
         miner_thread_cfg_t *cfg = malloc(sizeof(miner_thread_cfg_t));
         cfg->thread_id = i;
-        
+
         size_t len = strlen(username);
         if (len >= sizeof(cfg->username)) len = sizeof(cfg->username) - 1;
         memcpy(cfg->username, username, len);
