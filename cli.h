@@ -3,7 +3,7 @@
 
 #include "hal.h"
 
-#define MINER_VERSION "1.2.2"
+#define MINER_VERSION "1.2.3"
 
 #ifdef MINIMAL
     #if defined(ESP_PLATFORM)
@@ -19,7 +19,7 @@
 
 #define MINER_USER_AGENT MINER_ID " v" MINER_VERSION
 
-#define CLI_BUILD_DATE "August 1, 2026"
+#define CLI_BUILD_DATE "August 6, 2026"
 
 #ifndef MINIMAL
 
