@@ -32,6 +32,14 @@ volatile unsigned int global_hashrates[MAX_THREADS] = {0};
     #define LOG(...) printf(__VA_ARGS__)
 #endif
 
+static inline void safe_strcpy(char *dest, const char *src, size_t dest_size) {
+    if (!dest || !src || dest_size == 0) return;
+    size_t len = strlen(src);
+    if (len >= dest_size) len = dest_size - 1;
+    memcpy(dest, src, len);
+    dest[len] = '\0';
+}
+
 static inline size_t append_nonce(char *base, size_t base_len, unsigned int nonce) {
     char *ptr = base + base_len;
     char *ptr1 = ptr;
@@ -185,10 +193,7 @@ static void miner_worker(void *arg) {
             }
 
             char reply_copy[256];
-            size_t r_len = strlen(serverreply);
-            if (r_len >= sizeof(reply_copy)) r_len = sizeof(reply_copy) - 1;
-            memcpy(reply_copy, serverreply, r_len);
-            reply_copy[r_len] = '\0';
+            safe_strcpy(reply_copy, serverreply, sizeof(reply_copy));
 
             char *job = strtok(reply_copy, ",");
             char *work = strtok(NULL, ",");
@@ -304,7 +309,7 @@ static int miner_main(int argc, char **argv) {
     char rig_id[64] = "atto-rig";
     char difficulty[16];
 
-    strcpy(difficulty, DUCO_DIFFICULTY);
+    safe_strcpy(difficulty, DUCO_DIFFICULTY, sizeof(difficulty));
 
     int num_threads = cpu.logical_cores;
     if (num_threads <= 0) num_threads = 1;
@@ -319,10 +324,10 @@ static int miner_main(int argc, char **argv) {
     cli_config_t cfg_in;
     cli_gather_config(argc, argv, &cfg_in, num_threads);
 
-    memcpy(username, cfg_in.username, sizeof(username));
-    memcpy(mining_key, cfg_in.mining_key, sizeof(mining_key));
-    memcpy(rig_id, cfg_in.rig_id, sizeof(rig_id));
-    memcpy(difficulty, cfg_in.difficulty, sizeof(difficulty));
+    safe_strcpy(username, cfg_in.username, sizeof(username));
+    safe_strcpy(mining_key, cfg_in.mining_key, sizeof(mining_key));
+    safe_strcpy(rig_id, cfg_in.rig_id, sizeof(rig_id));
+    safe_strcpy(difficulty, cfg_in.difficulty, sizeof(difficulty));
     num_threads = cfg_in.num_threads;
 
     if (num_threads <= 0) num_threads = 1;
@@ -330,22 +335,9 @@ static int miner_main(int argc, char **argv) {
 
     LOG("Spawning %d threads for %s on rig %s (GroupID: %d)...\n\n", num_threads, username, rig_id, pool_group_id);
 #else
-    {
-        size_t len = strlen(DUCO_USERNAME);
-        if (len >= sizeof(username)) len = sizeof(username) - 1;
-        memcpy(username, DUCO_USERNAME, len);
-        username[len] = '\0';
-
-        len = strlen(DUCO_MINING_KEY);
-        if (len >= sizeof(mining_key)) len = sizeof(mining_key) - 1;
-        memcpy(mining_key, DUCO_MINING_KEY, len);
-        mining_key[len] = '\0';
-
-        len = strlen(DUCO_RIG_ID);
-        if (len >= sizeof(rig_id)) len = sizeof(rig_id) - 1;
-        memcpy(rig_id, DUCO_RIG_ID, len);
-        rig_id[len] = '\0';
-    }
+    safe_strcpy(username, DUCO_USERNAME, sizeof(username));
+    safe_strcpy(mining_key, DUCO_MINING_KEY, sizeof(mining_key));
+    safe_strcpy(rig_id, DUCO_RIG_ID, sizeof(rig_id));
 
     #ifdef DUCO_THREADS
         num_threads = DUCO_THREADS;
@@ -358,33 +350,16 @@ static int miner_main(int argc, char **argv) {
         miner_thread_cfg_t *cfg = malloc(sizeof(miner_thread_cfg_t));
         cfg->thread_id = i;
 
-        size_t len = strlen(username);
-        if (len >= sizeof(cfg->username)) len = sizeof(cfg->username) - 1;
-        memcpy(cfg->username, username, len);
-        cfg->username[len] = '\0';
-
-        len = strlen(mining_key);
-        if (len >= sizeof(cfg->mining_key)) len = sizeof(cfg->mining_key) - 1;
-        memcpy(cfg->mining_key, mining_key, len);
-        cfg->mining_key[len] = '\0';
-
-        len = strlen(rig_id);
-        if (len >= sizeof(cfg->rig_id)) len = sizeof(cfg->rig_id) - 1;
-        memcpy(cfg->rig_id, rig_id, len);
-        cfg->rig_id[len] = '\0';
+        safe_strcpy(cfg->username, username, sizeof(cfg->username));
+        safe_strcpy(cfg->mining_key, mining_key, sizeof(cfg->mining_key));
+        safe_strcpy(cfg->rig_id, rig_id, sizeof(cfg->rig_id));
 
         cfg->single_miner_id = pool_group_id;
 
 #ifndef MINIMAL
-        len = strlen(difficulty);
-        if (len >= sizeof(cfg->requested_difficulty)) len = sizeof(cfg->requested_difficulty) - 1;
-        memcpy(cfg->requested_difficulty, difficulty, len);
-        cfg->requested_difficulty[len] = '\0';
+        safe_strcpy(cfg->requested_difficulty, difficulty, sizeof(cfg->requested_difficulty));
 #else
-        len = strlen(DUCO_DIFFICULTY);
-        if (len >= sizeof(cfg->requested_difficulty)) len = sizeof(cfg->requested_difficulty) - 1;
-        memcpy(cfg->requested_difficulty, DUCO_DIFFICULTY, len);
-        cfg->requested_difficulty[len] = '\0';
+        safe_strcpy(cfg->requested_difficulty, DUCO_DIFFICULTY, sizeof(cfg->requested_difficulty));
 #endif
 
         hal_thread_create(miner_worker, cfg);
