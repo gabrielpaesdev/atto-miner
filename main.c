@@ -65,6 +65,26 @@ static inline size_t append_nonce(char *base, size_t base_len, unsigned int nonc
     return total_len;
 }
 
+static inline void nonce_digits_reset(char *digits, int *ndigits) {
+    digits[0] = '0';
+    *ndigits = 1;
+}
+
+static inline void nonce_digits_increment(char *digits, int *ndigits) {
+    int k = *ndigits - 1;
+    while (k >= 0) {
+        if (digits[k] != '9') {
+            digits[k]++;
+            return;
+        }
+        digits[k] = '0';
+        k--;
+    }
+    memmove(digits + 1, digits, (size_t)*ndigits);
+    digits[0] = '1';
+    (*ndigits)++;
+}
+
 static inline uint32_t parse_hex_word(const char *hex) {
     uint32_t val = 0;
     for (int i = 0; i < 8; i++) {
@@ -217,15 +237,24 @@ static void miner_worker(void *arg) {
             size_t base_job_len = strlen(job);
             memcpy(block, job, base_job_len);
 
-            for (unsigned int i = 0; i < max_nonce; i++) {
-                size_t total_len = append_nonce((char*)block, base_job_len, i);
-                block[total_len] = 0x80;
+            char nonce_digits[16];
+            int ndigits;
+            nonce_digits_reset(nonce_digits, &ndigits);
+            size_t prev_total_len = (size_t)-1;
 
-                uint32_t bits = (uint32_t)(total_len * 8);
-                block[60] = (bits >> 24) & 0xFF;
-                block[61] = (bits >> 16) & 0xFF;
-                block[62] = (bits >> 8)  & 0xFF;
-                block[63] = bits & 0xFF;
+            for (unsigned int i = 0; i < max_nonce; i++) {
+                memcpy(block + base_job_len, nonce_digits, (size_t)ndigits);
+                size_t total_len = base_job_len + (size_t)ndigits;
+
+                if (total_len != prev_total_len) {
+                    block[total_len] = 0x80;
+                    uint32_t bits = (uint32_t)(total_len * 8);
+                    block[60] = (bits >> 24) & 0xFF;
+                    block[61] = (bits >> 16) & 0xFF;
+                    block[62] = (bits >> 8)  & 0xFF;
+                    block[63] = bits & 0xFF;
+                    prev_total_len = total_len;
+                }
 
                 uint32_t state[5] = { 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0 };
 
@@ -252,7 +281,8 @@ static void miner_worker(void *arg) {
                     }
 
                     char result_nonce_str[16];
-                    append_nonce(result_nonce_str, 0, i);
+                    memcpy(result_nonce_str, nonce_digits, (size_t)ndigits);
+                    result_nonce_str[ndigits] = '\0';
 
                     char submit_message[128];
                     snprintf(submit_message, sizeof(submit_message), "%s,%u,%s v%s,%s,,%d",
@@ -283,6 +313,8 @@ static void miner_worker(void *arg) {
                     share_found = 1;
                     break;
                 }
+
+                nonce_digits_increment(nonce_digits, &ndigits);
             }
             if (!share_found && connection_alive) continue;
         }
